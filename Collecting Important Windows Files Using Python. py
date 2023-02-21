@@ -1,0 +1,163 @@
+
+import os
+
+def find_config_files(directory, extension):
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(extension):
+                print(os.path.join(root, file))
+Next we can add a prompt to enter the drive and file extensions to search for.
+
+import 
+
+directory = input("Enter the directory to search in: ")
+extension = input("Enter the file extension to search for (e.g. .ini): ")
+
+find_config_files(directory, extension)
+It is nice to add responses so that we know the program is running as intended. So lets add a function that indicates what files are being searched for and in which directory.
+
+print("Searching for {} files in {}...".format(extension, directory))
+find_config_files(directory, extension)
+From here we can run this file.
+
+
+Now this is nice if there are only a few paths or if we wanted to keep the noise down. However, if there are several paths we will want to write the output to a file. First import the sys module at the top of the program then add the following to the script at the bottom.
+
+with open(filename, 'w') as file:
+    original_stdout = sys.stdout
+    sys.stdout = file
+    find_config_files(directory, extension)
+    sys.stdout = original_stdout
+
+print("Output saved to {}".format(filename))
+If we run the script again we will be prompted to name the output file.
+
+
+
+This next step is more advanced and requires an understanding of the Google API. We will use the Google OAuth 2.0 library to authorize access to the Google Drive API. The google.oauth2.service_account.Credentials module is used to authorize access using a service account key file.
+
+Here’s a brief overview of the Google authorization flow:
+
+A user (or in this case, a service account) requests access to a Google API by providing their credentials (or in this case, a service account key file) to the API.
+If the credentials are valid, the API returns an access token to the user (or service account).
+The user (or service account) includes the access token in API requests to authenticate with the API.
+The API verifies the access token and returns the requested data (or performs the requested action) if the token is valid.
+In our script the authorization flow works as follows:
+
+The script loads the service account key file from the specified location on disk using the Credentials.from_service_account_file method.
+The creds variable is then used to authenticate with the Google Drive API when calling build('drive', 'v3', credentials=creds).
+The creds variable is passed to the MediaFileUpload class when uploading files to Google Drive using the media_body parameter. This allows the API to verify that the request is authorized.
+The Python script will have some code in it that will look like what we have written below. You will need to make sure that you get your JSON key file from your Google account and put the function in the right place in the script (after the module imports). If you need more information about how to authenticate the Google API, you can find it here on the Google developers website.
+
+def upload_files_to_google_drive(files, folder_id):\
+
+ # Replace the path to the JSON key file with the path to your own key file
+    creds = Credentials.from_service_account_file('/path/to/key.json')
+
+service = build('drive', 'v3', credentials=creds)
+
+    uploaded_files = []
+    for file in files:
+        file_metadata = {'name': os.path.basename(file), 'parents': [folder_id]}
+        media = MediaFileUpload(file, resumable=True)
+        try:
+            file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            uploaded_files.append(file.get('id'))
+        except HttpError as error:
+            print(f'An error occurred: {error}')
+            file = None
+    return uploaded_files
+We also want a prompt to ask if you want the files uploaded. If the response is yes then the files will be uploaded. If no we can print out a statement saying no files were uploaded
+
+# Ask the user if they want to upload the discovered files to Google Drive
+upload_to_google = input("Do you want to upload the discovered files to Google Drive? (y/n): ")
+
+if upload_to_google.lower() == 'y':
+    folder_id = input("Enter the Google Drive folder ID to upload files to: ")
+    uploaded_files = upload_files_to_google_drive(files, folder_id)
+
+    if len(uploaded_files) > 0:
+        print(f"Uploaded {len(uploaded_files)} files to Google Drive:")
+        for file_id in uploaded_files:
+            print(f"https://drive.google.com/file/d/{file_id}/view")
+    else:
+        print("No files were uploaded to Google Drive.")
+So if we put this all together it looks like this. I added s few comments using triple quotes to help along the way.
+
+import os
+
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload
+
+
+def find_config_files(directory, extension):
+    """
+    Searches for all files in a specified directory with a given file extension.
+
+    :param directory: The directory to search in.
+    :param extension: The file extension to search for.
+    :return: A list of paths to the discovered files.
+    """
+    files = []
+    for root, dirs, filenames in os.walk(directory):
+        for filename in filenames:
+            if filename.endswith(extension):
+                files.append(os.path.join(root, filename))
+    return files
+
+
+def upload_files_to_google_drive(files, folder_id):
+    """
+    Uploads the specified files to a specified Google Drive folder.
+
+    :param files: A list of paths to the files to upload.
+    :param folder_id: The ID of the Google Drive folder to upload files to.
+    :return: A list of IDs of the uploaded files.
+    """
+    # Replace the path to the JSON key file with the path to your own key file
+    creds = Credentials.from_service_account_file('/Your_path/to/Your_key.json')
+
+    service = build('drive', 'v3', credentials=creds)
+
+    uploaded_files = []
+    for file in files:
+        file_metadata = {'name': os.path.basename(file), 'parents': [folder_id]}
+        media = MediaFileUpload(file, resumable=True)
+        try:
+            file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            uploaded_files.append(file.get('id'))
+        except HttpError as error:
+            print(f'An error occurred: {error}')
+            file = None
+    return uploaded_files
+
+
+directory = input("Enter the directory to search in: ")
+extension = input("Enter the file extension to search for (e.g. .ini): ")
+
+# Find all configuration files in the specified directory with the specified extension
+files = find_config_files(directory, extension)
+
+# Print the discovered files to the screen
+if len(files) > 0:
+    print(f"Discovered {len(files)} files with the '{extension}' extension in the '{directory}' directory:")
+    for file in files:
+        print(file)
+else:
+    print(f"No files with the '{extension}' extension were found in the '{directory}' directory.")
+
+# Ask the user if they want to upload the discovered files to Google Drive
+upload_to_google = input("Do you want to upload the discovered files to Google Drive? (y/n): ")
+
+if upload_to_google.lower() == 'y':
+    folder_id = input("Enter the Google Drive folder ID to upload files to: ")
+    uploaded_files = upload_files_to_google_drive(files, folder_id)
+
+    if len(uploaded_files) > 0:
+        print(f"Uploaded {len(uploaded_files)} files to Google Drive:")
+        for file_id in uploaded_files:
+            print(f"https://drive.google.com/file/d/{file_id}/view")
+    else:
+        print("No files were uploaded to Google Drive.")
