@@ -1,0 +1,14 @@
+.com
+.net
+.org
+.edu
+.gov
+.biz
+.info
+.mobi
+.name
+.co
+.us
+.ca
+.uk
+.au
