@@ -1,0 +1,53 @@
+import argparse
+import numpy as np
+import cv2
+from PIL import Image
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='Detect tampered photos and steganography')
+parser.add_argument('input_file', metavar='input', type=str,
+                    help='path to the input image')
+parser.add_argument('--tampering', action='store_true',
+                    help='detect tampering in the image')
+parser.add_argument('--photoshopped', action='store_true',
+                    help='detect if the image has been Photoshopped')
+parser.add_argument('--steganography', action='store_true',
+                    help='detect if the image contains hidden data')
+args = parser.parse_args()
+
+# Load the input image
+img = Image.open(args.input_file)
+
+# Detect tampering
+if args.tampering:
+    metadata = img._getexif()
+    if metadata is not None:
+        software = metadata.get(305)
+        if software is not None and 'photoshop' in software.lower():
+            print('The image may have been edited using Photoshop.')
+    gray_img = img.convert('L')
+    edges = cv2.Canny(np.array(gray_img), 100, 200)
+    num_edges = np.sum(edges > 0)
+    total_pixels = gray_img.width * gray_img.height
+    if num_edges > 0.1 * total_pixels:
+        print('The image may have been tampered with.')
+
+# Detect Photoshopped images
+if args.photoshopped:
+    img_gray = np.array(img.convert('L'))
+    img_blur = cv2.GaussianBlur(img_gray, (21, 21), 0)
+    img_diff = cv2.absdiff(img_gray, img_blur)
+    threshold_value = 40
+    _, img_thresh = cv2.threshold(img_diff, threshold_value, 255, cv2.THRESH_BINARY)
+    img_edges = cv2.Canny(img_thresh, threshold_value, threshold_value * 2)
+    num_edges = np.sum(img_edges > 0)
+    total_pixels = img_edges.shape[0] * img_edges.shape[1]
+    if num_edges > 0.1 * total_pixels:
+        print('The image may have been Photoshopped.')
+
+# Detect steganography
+if args.steganography:
+    img_data = np.array(img)
+    img_data_diff = np.diff(img_data.astype(int), axis=0)
+    if np.any(img_data_diff != 0):
+        print('The image may contain hidden data.')
