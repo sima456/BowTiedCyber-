@@ -1,0 +1,12 @@
+import pcap
+
+def is_promiscuous(iface):
+    p = pcap.pcap(name=iface, immediate=True)
+    return p.stats()[1] != 0
+
+if __name__ == '__main__':
+    iface = input("Enter network interface name: ")
+    if is_promiscuous(iface):
+        print(f"{iface} is in promiscuous mode")
+    else:
+        print(f"{iface} is not in promiscuous mode")
